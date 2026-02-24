@@ -1,11 +1,15 @@
 import { Plugin, PluginSettingTab, App, Setting } from "obsidian";
 
+// --- Settings ---
+
 interface MermaidPanZoomSettings {
     containerHeight: number;
     minZoom: number;
     maxZoom: number;
     zoomSpeed: number;
     showControls: boolean;
+    theme: string;
+    customCSS: string;
 }
 
 const DEFAULT_SETTINGS: MermaidPanZoomSettings = {
@@ -14,7 +18,78 @@ const DEFAULT_SETTINGS: MermaidPanZoomSettings = {
     maxZoom: 10,
     zoomSpeed: 0.002,
     showControls: true,
+    theme: "obsidian",
+    customCSS: "",
 };
+
+// --- Themes ---
+
+// Each theme is a CSS string injected into the SVG <style> to override Mermaid's defaults.
+// "obsidian" is special — it means "inherit the vault's theme" (no overrides).
+const THEMES: Record<string, { label: string; css: string }> = {
+    obsidian: {
+        label: "Obsidian (match vault theme)",
+        css: "", // No override — inherits from Obsidian's CSS context
+    },
+    dark: {
+        label: "Dark",
+        css: `
+            .node rect, .node circle, .node ellipse, .node polygon, .node path,
+            .label-container { fill: #2d333b !important; stroke: #768390 !important; }
+            .nodeLabel, .label, .edgeLabel span { color: #adbac7 !important; }
+            .edgePath path.path, .flowchart-link { stroke: #768390 !important; }
+            .arrowheadPath, marker path { fill: #768390 !important; stroke: #768390 !important; }
+            .cluster rect { fill: #1c2128 !important; stroke: #444c56 !important; }
+            .cluster span, .cluster .nodeLabel { color: #768390 !important; }
+            .edgeLabel rect { fill: #1c2128 !important; opacity: 1 !important; }
+        `,
+    },
+    light: {
+        label: "Light",
+        css: `
+            .node rect, .node circle, .node ellipse, .node polygon, .node path,
+            .label-container { fill: #ffffff !important; stroke: #6e7781 !important; }
+            .nodeLabel, .label, .edgeLabel span { color: #1f2328 !important; }
+            .edgePath path.path, .flowchart-link { stroke: #6e7781 !important; }
+            .arrowheadPath, marker path { fill: #6e7781 !important; stroke: #6e7781 !important; }
+            .cluster rect { fill: #f6f8fa !important; stroke: #d0d7de !important; }
+            .cluster span, .cluster .nodeLabel { color: #656d76 !important; }
+            .edgeLabel rect { fill: #f6f8fa !important; opacity: 1 !important; }
+        `,
+    },
+    neutral: {
+        label: "Neutral",
+        css: `
+            .node rect, .node circle, .node ellipse, .node polygon, .node path,
+            .label-container { fill: #f0f0f0 !important; stroke: #999 !important; }
+            .nodeLabel, .label, .edgeLabel span { color: #333 !important; }
+            .edgePath path.path, .flowchart-link { stroke: #999 !important; }
+            .arrowheadPath, marker path { fill: #999 !important; stroke: #999 !important; }
+            .cluster rect { fill: #e8e8e8 !important; stroke: #bbb !important; }
+            .cluster span, .cluster .nodeLabel { color: #666 !important; }
+            .edgeLabel rect { fill: #e8e8e8 !important; opacity: 1 !important; }
+        `,
+    },
+    ocean: {
+        label: "Ocean",
+        css: `
+            .node rect, .node circle, .node ellipse, .node polygon, .node path,
+            .label-container { fill: #0d1b2a !important; stroke: #48cae4 !important; }
+            .nodeLabel, .label, .edgeLabel span { color: #caf0f8 !important; }
+            .edgePath path.path, .flowchart-link { stroke: #48cae4 !important; }
+            .arrowheadPath, marker path { fill: #48cae4 !important; stroke: #48cae4 !important; }
+            .cluster rect { fill: #1b263b !important; stroke: #0077b6 !important; }
+            .cluster span, .cluster .nodeLabel { color: #90e0ef !important; }
+            .edgeLabel rect { fill: #1b263b !important; opacity: 1 !important; }
+        `,
+    },
+    custom: {
+        label: "Custom CSS",
+        css: "", // Uses settings.customCSS
+    },
+};
+
+// --- ViewBox state ---
 
 interface ViewState {
     vbX: number;
@@ -28,6 +103,8 @@ interface ViewState {
     naturalW: number;
     naturalH: number;
 }
+
+// --- Icons ---
 
 const ICONS = {
     zoomIn: `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm9-3a1 1 0 0 0-2 0v2H5a1 1 0 0 0 0 2h2v2a1 1 0 0 0 2 0V9h2a1 1 0 0 0 0-2H9V5Z"/></svg>`,
@@ -55,7 +132,6 @@ function bindPanZoom(
     settings: MermaidPanZoomSettings,
     onScaleChange?: (scale: number) => void
 ): PanZoomHandle {
-
     const computeBase = (): Pick<ViewState, "baseX" | "baseY" | "baseW" | "baseH"> => {
         const containerW = viewport.clientWidth || 1;
         const containerH = viewport.clientHeight || 1;
@@ -118,13 +194,10 @@ function bindPanZoom(
         const svgX = state.vbX + fracX * state.vbW;
         const svgY = state.vbY + fracY * state.vbH;
 
-        const newVbW = state.baseW / newScale;
-        const newVbH = state.baseH / newScale;
-
-        state.vbW = newVbW;
-        state.vbH = newVbH;
-        state.vbX = svgX - fracX * newVbW;
-        state.vbY = svgY - fracY * newVbH;
+        state.vbW = state.baseW / newScale;
+        state.vbH = state.baseH / newScale;
+        state.vbX = svgX - fracX * state.vbW;
+        state.vbY = svgY - fracY * state.vbH;
 
         applyViewBox();
     };
@@ -138,8 +211,7 @@ function bindPanZoom(
     const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const delta = -e.deltaY * settings.zoomSpeed;
-        zoomAtScreen(e.clientX, e.clientY, Math.exp(delta));
+        zoomAtScreen(e.clientX, e.clientY, Math.exp(-e.deltaY * settings.zoomSpeed));
     };
     viewport.addEventListener("wheel", onWheel, { passive: false });
 
@@ -161,10 +233,8 @@ function bindPanZoom(
     const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
         const rect = viewport.getBoundingClientRect();
-        const dx = ((e.clientX - dragStartX) / rect.width) * state.vbW;
-        const dy = ((e.clientY - dragStartY) / rect.height) * state.vbH;
-        state.vbX = vbStartX - dx;
-        state.vbY = vbStartY - dy;
+        state.vbX = vbStartX - ((e.clientX - dragStartX) / rect.width) * state.vbW;
+        state.vbY = vbStartY - ((e.clientY - dragStartY) / rect.height) * state.vbH;
         applyViewBox();
     };
 
@@ -179,7 +249,7 @@ function bindPanZoom(
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
 
-    // Touch: pinch zoom + drag pan
+    // Touch
     let lastTouchDist = 0;
     let lastTouchCenter = { x: 0, y: 0 };
     let isTouchPanning = false;
@@ -207,37 +277,27 @@ function bindPanZoom(
             const dist = getTouchDistance(e.touches);
             const center = getTouchCenter(e.touches);
             zoomAtScreen(center.x, center.y, dist / lastTouchDist);
-            const dx = ((center.x - lastTouchCenter.x) / rect.width) * state.vbW;
-            const dy = ((center.y - lastTouchCenter.y) / rect.height) * state.vbH;
-            state.vbX -= dx;
-            state.vbY -= dy;
+            state.vbX -= ((center.x - lastTouchCenter.x) / rect.width) * state.vbW;
+            state.vbY -= ((center.y - lastTouchCenter.y) / rect.height) * state.vbH;
             applyViewBox();
             lastTouchDist = dist;
             lastTouchCenter = center;
         } else if (e.touches.length === 1 && isTouchPanning) {
             e.preventDefault();
-            const dx = ((e.touches[0].clientX - touchDragStartX) / rect.width) * state.vbW;
-            const dy = ((e.touches[0].clientY - touchDragStartY) / rect.height) * state.vbH;
-            state.vbX = touchVbStartX - dx;
-            state.vbY = touchVbStartY - dy;
+            state.vbX = touchVbStartX - ((e.touches[0].clientX - touchDragStartX) / rect.width) * state.vbW;
+            state.vbY = touchVbStartY - ((e.touches[0].clientY - touchDragStartY) / rect.height) * state.vbH;
             applyViewBox();
         }
     };
 
-    const onTouchEnd = () => {
-        isTouchPanning = false;
-        lastTouchDist = 0;
-    };
+    const onTouchEnd = () => { isTouchPanning = false; lastTouchDist = 0; };
 
     viewport.addEventListener("touchstart", onTouchStart, { passive: false });
     viewport.addEventListener("touchmove", onTouchMove, { passive: false });
     viewport.addEventListener("touchend", onTouchEnd);
 
     // Double-click to fit
-    const onDblClick = (e: MouseEvent) => {
-        e.preventDefault();
-        fitToView();
-    };
+    const onDblClick = (e: MouseEvent) => { e.preventDefault(); fitToView(); };
     viewport.addEventListener("dblclick", onDblClick);
 
     const destroy = () => {
@@ -258,7 +318,6 @@ function bindPanZoom(
 
 function buildControls(
     handle: PanZoomHandle,
-    settings: MermaidPanZoomSettings,
     extra?: { icon: string; title: string; onClick: () => void }[]
 ): { el: HTMLElement; updateLabel: (scale: number) => void } {
     const controls = document.createElement("div");
@@ -300,6 +359,33 @@ function buildControls(
             zoomLabel.textContent = `${Math.round(scale * 100)}%`;
         },
     };
+}
+
+// --- Theme injection ---
+
+function getThemeCSS(settings: MermaidPanZoomSettings): string {
+    if (settings.theme === "custom") return settings.customCSS;
+    return THEMES[settings.theme]?.css || "";
+}
+
+/**
+ * Inject theme CSS into an SVG element. Replaces any previous injection.
+ * For "obsidian" theme, no CSS is injected — the SVG inherits from context.
+ */
+function applyThemeToSvg(svg: SVGElement, settings: MermaidPanZoomSettings) {
+    // Remove previous injection
+    const existing = svg.querySelector("style[data-mpz-theme]");
+    if (existing) existing.remove();
+
+    const css = getThemeCSS(settings);
+    if (!css) return;
+
+    const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    styleEl.setAttribute("data-mpz-theme", "true");
+    styleEl.textContent = css;
+    // Prepend so it can be overridden by Mermaid's own styles if needed,
+    // but our !important declarations take priority
+    svg.prepend(styleEl);
 }
 
 // --- Plugin ---
@@ -401,6 +487,9 @@ export default class MermaidPanZoomPlugin extends Plugin {
         const dims = this.prepareSvg(svg);
         if (!dims) return;
 
+        // Apply theme to inline view (non-obsidian themes only)
+        applyThemeToSvg(svg, settings);
+
         const wrapper = document.createElement("div");
         wrapper.className = "mpz-wrapper";
 
@@ -414,7 +503,6 @@ export default class MermaidPanZoomPlugin extends Plugin {
         mermaidDiv.classList.add("mpz-content");
         mermaidDiv.style.overflow = "visible";
 
-        // Save original viewBox for pop-out cloning
         const origViewBox = svg.getAttribute("viewBox") || "";
 
         const handle = bindPanZoom(viewport, svg, dims.naturalW, dims.naturalH, settings, (scale) => {
@@ -422,14 +510,14 @@ export default class MermaidPanZoomPlugin extends Plugin {
         });
         this.register(() => handle.destroy());
 
-        const ctrl = buildControls(handle, settings, [
+        const ctrl = buildControls(handle, [
             {
                 icon: ICONS.popOut,
                 title: "Pop out",
                 onClick: () => this.openModal(svg, origViewBox, dims.naturalW, dims.naturalH),
             },
         ]);
-        wrapper.appendChild(ctrl.el);
+        if (settings.showControls) wrapper.appendChild(ctrl.el);
 
         requestAnimationFrame(() => {
             requestAnimationFrame(() => handle.fitToView());
@@ -439,18 +527,19 @@ export default class MermaidPanZoomPlugin extends Plugin {
     private openModal(sourceSvg: SVGElement, origViewBox: string, naturalW: number, naturalH: number) {
         const settings = this.settings;
 
-        // Overlay
         const overlay = document.createElement("div");
         overlay.className = "mpz-modal-overlay";
 
-        // Modal container
         const modal = document.createElement("div");
         modal.className = "mpz-modal";
 
         const modalViewport = document.createElement("div");
         modalViewport.className = "mpz-modal-viewport";
 
-        // Clone the SVG
+        // Wrap clone in a .mermaid div so Obsidian's theme CSS applies
+        const mermaidContext = document.createElement("div");
+        mermaidContext.className = "mermaid mpz-modal-content";
+
         const svgClone = sourceSvg.cloneNode(true) as SVGElement;
         svgClone.setAttribute("viewBox", origViewBox);
         svgClone.removeAttribute("width");
@@ -459,12 +548,15 @@ export default class MermaidPanZoomPlugin extends Plugin {
         svgClone.style.width = "100%";
         svgClone.style.height = "100%";
 
-        modalViewport.appendChild(svgClone);
+        // Apply theme to the clone
+        applyThemeToSvg(svgClone, settings);
+
+        mermaidContext.appendChild(svgClone);
+        modalViewport.appendChild(mermaidContext);
         modal.appendChild(modalViewport);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        // Bind pan/zoom on the modal viewport
         const handle = bindPanZoom(modalViewport, svgClone, naturalW, naturalH, settings, (scale) => {
             ctrl.updateLabel(scale);
         });
@@ -475,30 +567,28 @@ export default class MermaidPanZoomPlugin extends Plugin {
             document.removeEventListener("keydown", onKey);
         };
 
-        const ctrl = buildControls(handle, settings, [
+        const ctrl = buildControls(handle, [
             { icon: ICONS.close, title: "Close (Esc)", onClick: closeModal },
         ]);
-        // Modal controls are always visible
         ctrl.el.classList.add("mpz-controls-visible");
         modal.appendChild(ctrl.el);
 
-        // Close on backdrop click
         overlay.addEventListener("mousedown", (e) => {
             if (e.target === overlay) closeModal();
         });
 
-        // Close on Escape
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") closeModal();
         };
         document.addEventListener("keydown", onKey);
 
-        // Fit after layout
         requestAnimationFrame(() => {
             requestAnimationFrame(() => handle.fitToView());
         });
     }
 }
+
+// --- Utility ---
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
@@ -517,6 +607,8 @@ function getTouchCenter(touches: TouchList): { x: number; y: number } {
     };
 }
 
+// --- Settings Tab ---
+
 class MermaidPanZoomSettingTab extends PluginSettingTab {
     plugin: MermaidPanZoomPlugin;
 
@@ -529,12 +621,13 @@ class MermaidPanZoomSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
+        containerEl.createEl("h3", { text: "Viewport" });
+
         new Setting(containerEl)
             .setName("Container height")
             .setDesc("Height of the diagram viewport in pixels")
             .addText((text) =>
-                text
-                    .setPlaceholder("500")
+                text.setPlaceholder("500")
                     .setValue(String(this.plugin.settings.containerHeight))
                     .onChange(async (value) => {
                         const num = parseInt(value, 10);
@@ -546,11 +639,23 @@ class MermaidPanZoomSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName("Show controls")
+            .setDesc("Display zoom buttons on diagram hover")
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.showControls)
+                    .onChange(async (value) => {
+                        this.plugin.settings.showControls = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        containerEl.createEl("h3", { text: "Zoom" });
+
+        new Setting(containerEl)
             .setName("Zoom speed")
-            .setDesc("Mouse wheel zoom sensitivity (default 0.002)")
+            .setDesc("Mouse wheel zoom sensitivity")
             .addText((text) =>
-                text
-                    .setPlaceholder("0.002")
+                text.setPlaceholder("0.002")
                     .setValue(String(this.plugin.settings.zoomSpeed))
                     .onChange(async (value) => {
                         const num = parseFloat(value);
@@ -562,21 +667,10 @@ class MermaidPanZoomSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Show controls")
-            .setDesc("Display zoom buttons on diagram hover")
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.showControls).onChange(async (value) => {
-                    this.plugin.settings.showControls = value;
-                    await this.plugin.saveSettings();
-                })
-            );
-
-        new Setting(containerEl)
             .setName("Minimum zoom")
-            .setDesc("Minimum zoom level (default 0.1 = 10%)")
+            .setDesc("Lower zoom bound (0.1 = 10%)")
             .addText((text) =>
-                text
-                    .setPlaceholder("0.1")
+                text.setPlaceholder("0.1")
                     .setValue(String(this.plugin.settings.minZoom))
                     .onChange(async (value) => {
                         const num = parseFloat(value);
@@ -589,10 +683,9 @@ class MermaidPanZoomSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("Maximum zoom")
-            .setDesc("Maximum zoom level (default 10 = 1000%)")
+            .setDesc("Upper zoom bound (10 = 1000%)")
             .addText((text) =>
-                text
-                    .setPlaceholder("10")
+                text.setPlaceholder("10")
                     .setValue(String(this.plugin.settings.maxZoom))
                     .onChange(async (value) => {
                         const num = parseFloat(value);
@@ -602,5 +695,56 @@ class MermaidPanZoomSettingTab extends PluginSettingTab {
                         }
                     })
             );
+
+        containerEl.createEl("h3", { text: "Theme" });
+
+        containerEl.createEl("p", {
+            text: 'Controls the color scheme of Mermaid diagrams. "Obsidian" inherits your vault\'s theme. Other presets override Mermaid\'s default colors. "Custom CSS" lets you write your own.',
+            cls: "setting-item-description",
+        });
+
+        new Setting(containerEl)
+            .setName("Diagram theme")
+            .addDropdown((dropdown) => {
+                for (const [key, theme] of Object.entries(THEMES)) {
+                    dropdown.addOption(key, theme.label);
+                }
+                dropdown.setValue(this.plugin.settings.theme);
+                dropdown.onChange(async (value) => {
+                    this.plugin.settings.theme = value;
+                    await this.plugin.saveSettings();
+                    // Re-render to show/hide custom CSS field
+                    this.display();
+                });
+            });
+
+        if (this.plugin.settings.theme === "custom") {
+            const customSetting = new Setting(containerEl)
+                .setName("Custom CSS")
+                .setDesc("CSS to inject into Mermaid SVGs. Target Mermaid classes like .node rect, .edgeLabel, .cluster rect, etc. Use !important to override embedded styles.");
+
+            const textArea = document.createElement("textarea");
+            textArea.className = "mpz-custom-css-input";
+            textArea.placeholder = `.node rect { fill: #1a1a2e !important; stroke: #e94560 !important; }
+.nodeLabel { color: #eee !important; }
+.edgePath path { stroke: #e94560 !important; }
+.cluster rect { fill: #16213e !important; stroke: #0f3460 !important; }`;
+            textArea.value = this.plugin.settings.customCSS;
+            textArea.rows = 12;
+            textArea.spellcheck = false;
+
+            textArea.addEventListener("change", async () => {
+                this.plugin.settings.customCSS = textArea.value;
+                await this.plugin.saveSettings();
+            });
+
+            customSetting.controlEl.appendChild(textArea);
+        }
+
+        // Theme preview hint
+        containerEl.createEl("p", {
+            text: "Note: theme changes apply to newly rendered diagrams. Switch away from the note and back, or reload Obsidian to see changes on existing diagrams.",
+            cls: "setting-item-description mpz-theme-hint",
+        });
     }
 }
