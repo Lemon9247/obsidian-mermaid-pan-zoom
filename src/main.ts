@@ -208,6 +208,9 @@ function bindPanZoom(
 
     const onMouseDown = (e: MouseEvent) => {
         if (e.button !== 0) return;
+        // Don't intercept the native resize handle (bottom-right corner)
+        const rect = viewport.getBoundingClientRect();
+        if (e.clientX > rect.right - 18 && e.clientY > rect.bottom - 18) return;
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
