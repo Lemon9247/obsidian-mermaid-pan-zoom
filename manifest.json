@@ -1,0 +1,9 @@
+{
+    "id": "mermaid-pan-zoom",
+    "name": "Mermaid Pan & Zoom",
+    "version": "0.1.0",
+    "minAppVersion": "1.0.0",
+    "description": "GitHub-like pan and zoom for Mermaid diagrams — scroll to zoom, drag to pan, fit-to-view controls.",
+    "author": "Willow",
+    "isDesktopOnly": false
+}

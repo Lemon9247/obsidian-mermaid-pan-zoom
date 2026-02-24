@@ -1,0 +1,123 @@
+/* === Mermaid Pan & Zoom === */
+
+.mpz-wrapper {
+    position: relative;
+    margin: 8px 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--background-secondary);
+}
+
+.mpz-viewport {
+    overflow: hidden;
+    cursor: grab;
+    position: relative;
+    width: 100%;
+    /* height is set inline from settings */
+}
+
+.mpz-viewport.mpz-grabbing {
+    cursor: grabbing;
+}
+
+/* The mermaid div itself becomes the transform target */
+div.mermaid.mpz-content {
+    transform-origin: 0 0;
+    will-change: transform;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible !important;
+}
+
+div.mermaid.mpz-content svg {
+    display: block;
+    max-width: none !important;
+    max-height: none !important;
+}
+
+/* --- Controls toolbar (GitHub-style) --- */
+
+.mpz-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 6px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.mpz-wrapper:hover .mpz-controls {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.mpz-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease;
+}
+
+.mpz-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.mpz-btn:active {
+    background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+}
+
+.mpz-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mpz-zoom-label {
+    font-size: 11px;
+    font-family: var(--font-monospace);
+    color: var(--text-muted);
+    padding: 0 6px;
+    min-width: 36px;
+    text-align: center;
+    user-select: none;
+}
+
+/* Subtle hint text at bottom */
+.mpz-wrapper::after {
+    content: "Scroll to zoom · Drag to pan · Double-click to fit";
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-faint);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.mpz-wrapper:hover::after {
+    opacity: 0.7;
+}
