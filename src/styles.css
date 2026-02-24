@@ -14,6 +14,7 @@
     cursor: grab;
     position: relative;
     width: 100%;
+    resize: vertical;
     /* height is set inline from settings */
 }
 
