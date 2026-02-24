@@ -31,21 +31,8 @@ const THEMES: Record<string, { label: string; css: string }> = {
         label: "Obsidian (match vault theme)",
         css: "", // No override — inherits from Obsidian's CSS context
     },
-    dark: {
-        label: "Dark",
-        css: `
-            .node rect, .node circle, .node ellipse, .node polygon, .node path,
-            .label-container { fill: #2d333b !important; stroke: #768390 !important; }
-            .nodeLabel, .label, .edgeLabel span { color: #adbac7 !important; }
-            .edgePath path.path, .flowchart-link { stroke: #768390 !important; }
-            .arrowheadPath, marker path { fill: #768390 !important; stroke: #768390 !important; }
-            .cluster rect { fill: #1c2128 !important; stroke: #444c56 !important; }
-            .cluster span, .cluster .nodeLabel { color: #768390 !important; }
-            .edgeLabel rect { fill: #1c2128 !important; opacity: 1 !important; }
-        `,
-    },
-    light: {
-        label: "Light",
+    clean: {
+        label: "Clean",
         css: `
             .node rect, .node circle, .node ellipse, .node polygon, .node path,
             .label-container { fill: #ffffff !important; stroke: #6e7781 !important; }
