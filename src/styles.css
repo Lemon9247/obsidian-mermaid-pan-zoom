@@ -152,6 +152,7 @@ div.mermaid.mpz-content svg {
     height: 100%;
     cursor: grab;
     overflow: hidden;
+    resize: none;
 }
 
 .mpz-modal-viewport.mpz-grabbing {
