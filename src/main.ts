@@ -405,7 +405,7 @@ export default class MermaidPanZoomPlugin extends Plugin {
             const divs = document.querySelectorAll<HTMLElement>("div.mermaid");
             for (const div of Array.from(divs)) {
                 if (this.processedDivs.has(div)) continue;
-                if (div.closest(".mpz-wrapper")) continue;
+                if (div.closest(".mpz-wrapper") || div.closest(".mpz-modal")) continue;
                 const svg = div.querySelector("svg");
                 if (!svg || svg.childElementCount === 0) continue;
                 this.pendingProcess.add(div);
